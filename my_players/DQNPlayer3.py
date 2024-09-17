@@ -54,7 +54,7 @@ class DQN(nn.Module):
         return x
 
 
-class DQNPlayer(QLearningPlayer):
+class DQNPlayer3(QLearningPlayer):
 
     def __init__(self, model_path, optimizer_path, training):
         """

@@ -3,7 +3,12 @@ from my_players.RandomPlayer import RandomPlayer
 from my_players.AllCall import AllCallPlayer
 from my_players.QLearningPlayer import QLearningPlayer
 from my_players.HumanPlayer import ConsolePlayer
-from my_players.DQNPlayer1 import DQNPlayer
+from my_players.DQNPlayer1 import DQNPlayer1
+from my_players.DQNPlayer2 import DQNPlayer2
+from my_players.DQNPlayer3 import DQNPlayer3
+from my_players.DQNPlayer4 import DQNPlayer4
+from my_players.DQNPlayer5 import DQNPlayer5
+from my_players.DQNPlayer6 import DQNPlayer6
 from my_players.cardplayer import cardplayer
 from my_players.A2CPlayer import A2CPlayer
 from my_players.HonestPlayer import HonestPlayer
@@ -12,7 +17,7 @@ import math
 import os
 import matplotlib.pyplot as plt
 
-num_episode = 100000
+num_episode = 10000
 win = 0
 sample_mean = 0
 SXX = 0
@@ -33,8 +38,15 @@ for i in range(1, Num_of_agents+1):
         'optimizer': os.getcwd() + f'/model/dqn{i}_optim.dump'
     }
 
-# Create DQNPlayer instances for each player
-training_agents = {i: DQNPlayer(dqn_paths[i]['model'], dqn_paths[i]['optimizer'], True) for i in range(1, Num_of_agents+1)}
+
+training_agents = []
+training_agents.append("")
+training_agents.append(DQNPlayer1(dqn_paths[1]['model'], dqn_paths[1]['optimizer'], True))
+training_agents.append(DQNPlayer2(dqn_paths[2]['model'], dqn_paths[2]['optimizer'], True))
+training_agents.append(DQNPlayer3(dqn_paths[3]['model'], dqn_paths[3]['optimizer'], True))
+training_agents.append(DQNPlayer4(dqn_paths[4]['model'], dqn_paths[4]['optimizer'], True))
+training_agents.append(DQNPlayer5(dqn_paths[5]['model'], dqn_paths[5]['optimizer'], True))
+training_agents.append(DQNPlayer6(dqn_paths[6]['model'], dqn_paths[6]['optimizer'], True))
 
 # Set up configuration
 config = setup_config(max_round=1, initial_stack=100, small_blind_amount=5)
