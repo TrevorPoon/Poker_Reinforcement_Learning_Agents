@@ -54,7 +54,7 @@ class DQN(nn.Module):
         return x
 
 
-class DQNPlayer5(QLearningPlayer):
+class DQNPlayer(QLearningPlayer):
 
     def __init__(self, model_path, optimizer_path, training):
         """
@@ -336,7 +336,7 @@ class DQNPlayer5(QLearningPlayer):
 
                     # VPIP Logic
                     if last_paid > 0:
-                        if not self.last_vpip_action or self.last_vpip_action != last_action:
+                        if not self.last_vpip_action:
                             self.VPIP += 1
                             self.last_vpip_action = last_action
                     else:

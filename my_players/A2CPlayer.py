@@ -41,7 +41,7 @@ class A2CPlayer(BasePokerPlayer):
         self.model_path = model_path
         self.optimizer_path = optimizer_path
         self.training = training
-        self.stack = 1500
+        self.stack = 100
         self.hole_card = None
 
         self.lr = 1e-4
@@ -59,6 +59,8 @@ class A2CPlayer(BasePokerPlayer):
         self.masks = []
         self.entropy = 0
         # load model
+        self.hand_count = 0
+        self.VPIP = 0
         try:
             self.model.load_state_dict(torch.load(self.model_path))
         except:
@@ -115,6 +117,12 @@ class A2CPlayer(BasePokerPlayer):
         self.values.append(value)
         self.masks.append(torch.Tensor([1]).float().unsqueeze(1).to(device))
         # self.history.append(state + (action_int, int(amount/10)))
+        if round_state["street"] == 'preflop':
+            self.hand_count += 1
+            pre_flop_action = round_state['action_histories']['preflop'][-1]['action']
+            
+            if pre_flop_action in ['CALL', 'RAISE']:
+                self.VPIP += 1
 
         return action, amount
 
@@ -134,7 +142,8 @@ class A2CPlayer(BasePokerPlayer):
                 self.stack = new_stack
 
             reward/=150
-            self.rewards = [reward] * len(self.clues)
+            
+            self.rewards = [reward] * len(self.values)
             self.masks[-1] = torch.Tensor([0]).float().unsqueeze(1).to(device)
 
             # preprocess the last state

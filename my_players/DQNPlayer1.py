@@ -60,10 +60,9 @@ class DQNPlayer1(QLearningPlayer):
         """
         State: hole_card, community_card, self.stack, opponent_player.action
         """
-
         # training device: cpu > cuda
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.fold_ratio = self.raise_ratio = self.call_ratio = 1.0 / 3
+        self.fold_ratio = self.raise_ratio = self.call_ratio = 1/3
         self.nb_player = self.player_id = None
         self.loss = 0
         self.episode = 0
@@ -81,7 +80,7 @@ class DQNPlayer1(QLearningPlayer):
         self.learn_start = learn_start
         self.target_net_update_freq = target_net_update_freq
         # training-required game attribute
-        self.stack = 1500
+        self.stack = 100
         self.hole_card = None
         self.model_path = model_path
         self.optimizer_path = optimizer_path
@@ -114,9 +113,15 @@ class DQNPlayer1(QLearningPlayer):
             self.target_net.eval()
 
         self.update_count = 0
+        
         self.hand_count = 0
         self.VPIP = 0
-        self.vpip_history = []
+        self.last_vpip_action = None
+        self.PFR = 0
+        self.last_pfr_action = None
+        self.three_bet = 0
+        self.last_3_bet_action = None
+
 
     def declare_networks(self):
         self.policy_net = DQN(self.num_feats, self.num_actions)
@@ -320,10 +325,43 @@ class DQNPlayer1(QLearningPlayer):
         self.history.append(state + (self.action_to_int(action),))
         if round_state["street"] == 'preflop':
             self.hand_count += 1
-            pre_flop_action = round_state['action_histories']['preflop'][-1]['action']
+            pre_flop_action = round_state['action_histories']['preflop']
             
-            if pre_flop_action in ['CALL', 'RAISE']:
-                self.VPIP += 1
+            if pre_flop_action:
+                last_action = pre_flop_action[-1]['action']
+
+                if last_action in ["CALL", "RAISE"]:
+
+                    last_paid = pre_flop_action[-1]['paid']
+
+                    # VPIP Logic
+                    if last_paid > 0:
+                        if not self.last_vpip_action or self.last_vpip_action != last_action:
+                            self.VPIP += 1
+                            self.last_vpip_action = last_action
+                    else:
+                        self.last_vpip_action = None
+
+                    # PFR Logic
+                    if last_action == "RAISE" and last_paid > 0 and not self.last_pfr_action:
+                        self.PFR += 1
+                        self.last_pfr_action = last_action
+                    else:
+                        self.last_pfr_action = None
+
+                    # 3-Bet Logic
+                    if last_action == "RAISE":
+                        # Check for any previous raise in the action history
+                        for previous_action in reversed(pre_flop_action[:-1]):  # Go backwards to find the first raise
+                            if previous_action["action"] == "RAISE":
+                                if last_paid > 0:  # Ensure that the current action is a paid raise
+                                    self.three_bet += 1
+                                    self.last_3_bet_action = last_action
+                                else:
+                                    self.last_3_bet_action = None
+                                break  # Exit loop after the first raise found
+        
+        # print(round_state)
 
         return action, amount
 
@@ -394,6 +432,3 @@ class DQNPlayer1(QLearningPlayer):
     def save_model(self):
         torch.save(self.policy_net.state_dict(), self.model_path)
         torch.save(self.optimizer.state_dict(), self.optimizer_path)
-
-    def get_vpip_history(self):
-        return self.vpip_history
