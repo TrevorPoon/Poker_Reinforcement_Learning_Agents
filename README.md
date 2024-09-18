@@ -36,6 +36,5 @@ The field of AI in poker is continuously evolving. Future directions of this pro
 ## Acknowledgments
 
 A special thanks to the PyPokerEngine team for providing a robust framework that facilitates poker game simulations. Their work has been invaluable in the development of this project.
----
 
 For any inquiries or suggestions, please open an issue in this repository or reach out directly. We hope you find this work both insightful and inspiring as you embark on your AI journey in the realm of strategic gaming! Enjoy the challenge, and may the odds be in your favor.
