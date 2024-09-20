@@ -17,7 +17,7 @@ import math
 import os
 import matplotlib.pyplot as plt
 
-num_episode = 100
+num_episode = 100000
 win = 0
 sample_mean = 0
 SXX = 0
@@ -51,7 +51,7 @@ training_agents.append(DQNPlayer5(dqn_paths[5]['model'], dqn_paths[5]['optimizer
 training_agents.append(DQNPlayer6(dqn_paths[6]['model'], dqn_paths[6]['optimizer'], True))
 
 # Set up configuration
-config = setup_config(max_round=6, initial_stack=100, small_blind_amount=5)
+config = setup_config(max_round=36, initial_stack=100, small_blind_amount=5)
 
 # Register each player with their respective DQNPlayer instance
 for i in range(1, Num_of_agents+1):
@@ -85,6 +85,16 @@ for i in range(0, num_episode):
             # Resetting the counts for the next episode
             training_agents[j].VPIP, training_agents[j].PFR, training_agents[j].three_bet, training_agents[j].hand_count = 0, 0, 0, 0
             config.players_info[j-1]['algorithm'].save_model()
+
+            plt.figure(figsize=(12, 6))
+            for j in range(1, 7):
+                plt.plot(vpip_history[j], label=f'Player {j} VPIP')
+            plt.title('VPIP History of All Agents')
+            plt.xlabel('Episodes (every 100 episodes)')
+            plt.ylabel('VPIP (%)')
+            plt.legend()
+            plt.grid()
+            plt.savefig('images/vpip_history.png')
 
 # Plotting the VPIP history
 plt.figure(figsize=(12, 6))
