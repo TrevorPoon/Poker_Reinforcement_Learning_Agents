@@ -324,7 +324,6 @@ class DQNPlayer1(QLearningPlayer):
         # record the action
         self.history.append(state + (self.action_to_int(action),))
         if round_state["street"] == 'preflop':
-            self.hand_count += 1
             pre_flop_action = round_state['action_histories']['preflop']
             
             if pre_flop_action:
@@ -336,29 +335,24 @@ class DQNPlayer1(QLearningPlayer):
 
                     # VPIP Logic
                     if last_paid > 0:
-                        if not self.last_vpip_action or self.last_vpip_action != last_action:
+                        if not self.last_vpip_action:
                             self.VPIP += 1
                             self.last_vpip_action = last_action
-                    else:
-                        self.last_vpip_action = None
+
 
                     # PFR Logic
                     if last_action == "RAISE" and last_paid > 0 and not self.last_pfr_action:
                         self.PFR += 1
                         self.last_pfr_action = last_action
-                    else:
-                        self.last_pfr_action = None
 
                     # 3-Bet Logic
-                    if last_action == "RAISE":
+                    if last_action == "RAISE" and not self.last_3_bet_action:
                         # Check for any previous raise in the action history
                         for previous_action in reversed(pre_flop_action[:-1]):  # Go backwards to find the first raise
                             if previous_action["action"] == "RAISE":
                                 if last_paid > 0:  # Ensure that the current action is a paid raise
                                     self.three_bet += 1
                                     self.last_3_bet_action = last_action
-                                else:
-                                    self.last_3_bet_action = None
                                 break  # Exit loop after the first raise found
         
         # print(round_state)
@@ -373,6 +367,10 @@ class DQNPlayer1(QLearningPlayer):
                 break
 
     def receive_round_start_message(self, round_count, hole_card, seats):
+        self.last_vpip_action = None
+        self.last_pfr_action = None
+        self.last_3_bet_action = None
+        self.hand_count += 1
         pass
 
     def receive_street_start_message(self, street, round_state):
