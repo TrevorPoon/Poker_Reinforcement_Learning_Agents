@@ -1,6 +1,6 @@
 # Poker Reinforcement Learning Agents
 
-Welcome to the Poker Reinforcement Learning Agents repository! This advanced machine learning project is designed to uncover optimal strategies for playing poker, with a primary focus on Texas Hold'em—the most popular variant of the game. The project aims to bridge the gap between theoretical machine learning algorithms and their practical applications in game theory and decision-making under uncertainty.
+This machine learning project is designed to uncover optimal strategies for playing poker, with a primary focus on Texas Hold'em—the most popular variant of the game. The project aims to bridge the gap between theoretical machine learning algorithms and their practical applications in game theory and decision-making under uncertainty.
 
 ## Project Overview
 
