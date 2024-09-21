@@ -311,12 +311,12 @@ class DQNPlayer(QLearningPlayer):
         state = self.hole_card + community_card + (int(round_state['seats'][self.player_id]['stack']/10),)
 
         state = self.process_state(state)
-        action = self.eps_greedy_policy(state, round_state['seats'][(self.player_id + 1) % 2], valid_actions,
+        action = self.eps_greedy_policy(state, round_state['seats'][(self.player_id + 1) % 6], valid_actions,
                                         self.epsilon)
         action = valid_actions[action]['action']
         if action == "raise":
             # To simplify the problem, raise only at minimum
-            amount = valid_actions[2]["amount"]["min"]
+            amount = valid_actions[2]["amount"]["max"]
         elif action == "call":
             amount = valid_actions[1]["amount"]
         else:

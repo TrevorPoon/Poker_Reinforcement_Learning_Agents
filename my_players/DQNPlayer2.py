@@ -311,12 +311,12 @@ class DQNPlayer2(QLearningPlayer):
         state = self.hole_card + community_card + (int(round_state['seats'][self.player_id]['stack']/10),)
 
         state = self.process_state(state)
-        action = self.eps_greedy_policy(state, round_state['seats'][(self.player_id + 1) % 2], valid_actions,
+        action = self.eps_greedy_policy(state, round_state['seats'][(self.player_id + 1) % 6], valid_actions,
                                         self.epsilon)
         action = valid_actions[action]['action']
         if action == "raise":
             # To simplify the problem, raise only at minimum
-            amount = valid_actions[2]["amount"]["min"]
+            amount = valid_actions[2]["amount"]["max"]
         elif action == "call":
             amount = valid_actions[1]["amount"]
         else:
@@ -341,7 +341,7 @@ class DQNPlayer2(QLearningPlayer):
 
 
                     # PFR Logic
-                    if last_action == "RAISE" and last_paid > 0 and not self.last_pfr_action:
+                    if last_action == "RAISE" and not self.last_pfr_action:
                         self.PFR += 1
                         self.last_pfr_action = last_action
 
@@ -350,9 +350,8 @@ class DQNPlayer2(QLearningPlayer):
                         # Check for any previous raise in the action history
                         for previous_action in reversed(pre_flop_action[:-1]):  # Go backwards to find the first raise
                             if previous_action["action"] == "RAISE":
-                                if last_paid > 0:  # Ensure that the current action is a paid raise
-                                    self.three_bet += 1
-                                    self.last_3_bet_action = last_action
+                                self.three_bet += 1
+                                self.last_3_bet_action = last_action
                                 break  # Exit loop after the first raise found
         
         # print(round_state)
