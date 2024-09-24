@@ -2,5 +2,9 @@
 venv/
 
 ToDo.txt
+
+.DQN_Stat
 DQN_Stat/
+
+.Utils
 Utils/
