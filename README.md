@@ -10,7 +10,6 @@ The repository is organized into several vital components:
 
 - `Models/`: Contains the trained machine learning models.
 - `my_players/`: Houses the bot logic and decision-making algorithms.
-- `Utils/`: Includes various utilities for data processing and analytics.
 
 ## Features
 
