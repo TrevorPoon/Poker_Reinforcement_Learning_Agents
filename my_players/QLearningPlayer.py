@@ -1,10 +1,3 @@
-# GOOD GOOD STUDY, DAY DAY UP!
-#    @Time:    9/18/2020 5:03 PM
-#    @Author:  Qingy
-#    @Email:   qingyuge006@gmail.com
-#    @File:    QLearningPlayer.py
-#    @Project: pypokerengine
-
 from pypokerengine.players import BasePokerPlayer
 import random as rand
 import numpy as np
