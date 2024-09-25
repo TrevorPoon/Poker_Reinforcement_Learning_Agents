@@ -62,7 +62,9 @@ class DQNPlayer4(QLearningPlayer):
         """
         # training device: cpu > cuda
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.fold_ratio = self.raise_ratio = self.call_ratio = 1/3
+        ratios = np.random.rand(3)
+        ratios /= ratios.sum()
+        self.fold_ratio, self.raise_ratio, self.call_ratio = ratios
         self.nb_player = self.player_id = None
         self.loss = 0
         self.episode = 0
@@ -88,7 +90,7 @@ class DQNPlayer4(QLearningPlayer):
         self.history = []
         self.training = training
         # declare DQN model
-        self.num_actions = 3
+        self.num_actions = 11
         self.num_feats = (8,)
         self.declare_networks()
         try:
@@ -121,6 +123,7 @@ class DQNPlayer4(QLearningPlayer):
         self.last_pfr_action = None
         self.three_bet = 0
         self.last_3_bet_action = None
+        self.raisesizes = [0.25, 0.33, 0.5, 0.75, 1, 1.25, 1.5]
 
 
     def declare_networks(self):
@@ -169,6 +172,7 @@ class DQNPlayer4(QLearningPlayer):
 
     def save_loss(self, loss):
         self.losses.append(loss)
+        print(losses)
 
     def compute_loss(self, batch_vars):
         batch_state, batch_action, batch_reward, non_final_next_states, non_final_mask, empty_next_state_values = batch_vars
@@ -187,7 +191,7 @@ class DQNPlayer4(QLearningPlayer):
         loss_fn = nn.SmoothL1Loss()
         loss = loss_fn(current_q_values, expected_q_values)
         self.loss.append(loss)
-        #print(loss)
+        print(loss)
         # diff = (expected_q_values - current_q_values)
         # loss = self.huber(diff)
         # loss = loss.mean()
@@ -247,7 +251,7 @@ class DQNPlayer4(QLearningPlayer):
 
     @staticmethod
     def card_to_int(card):
-        """convert card to int, card[0]:花色, card[1]:rank"""
+        """convert card to int, card[0]:suit, card[1]:rank"""
         suit_map = {'H': 0, 'S': 1, 'D': 2, 'C': 3}
         rank_map = {'2': 0, '3': 1, '4': 2, '5': 3, '6': 4, '7': 5, '8': 6, '9': 7, 'T': 8, 'J': 9, 'Q': 10, 'K': 11,
                     'A': 12}
@@ -272,15 +276,15 @@ class DQNPlayer4(QLearningPlayer):
                 X = torch.tensor([s], device=self.device, dtype=torch.float)
                 action_list = self.policy_net(X).cpu().numpy().reshape(-1)
                 if opponent['state'] == 'allin' or valid_actions[2]['amount']['max'] == -1:
-                    action_list = np.delete(action_list, 2)
+                    action_list = action_list[:2] 
                 if valid_actions[1]['amount'] == 0:
                     # if one can check, do not fold
-                    action_list[0] = action_list[1] - 1
+                    action_list = np.delete(action_list, 0)
                 return np.argmax(action_list)
             else:
                 action_list = np.array([0, 1, 2])
                 if opponent['state'] == 'allin' or valid_actions[2]['amount']['max'] == -1:
-                    action_list = np.delete(action_list, 2)
+                    action_list = action_list[:2] 
                 if valid_actions[1]['amount'] == 0:
                     # if one can check, do not fold
                     action_list = np.delete(action_list, 0)
@@ -292,7 +296,7 @@ class DQNPlayer4(QLearningPlayer):
         for i in range(0, 7):
             new_s[i] = new_s[i] / 26.0 - 1
         for i in range(7, 8):
-            new_s[i] = (new_s[i] - 150) / 150.0
+            new_s[i] = (new_s[i] - 10) / 10
         return tuple(new_s)
 
     def declare_action(self, valid_actions, hole_card, round_state):
@@ -311,16 +315,55 @@ class DQNPlayer4(QLearningPlayer):
         state = self.hole_card + community_card + (int(round_state['seats'][self.player_id]['stack']/10),)
 
         state = self.process_state(state)
+
+        pot_size = round_state['pot']['main']['amount']
+        side_pots = round_state['pot'].get('side', [])
+        for side_pot in side_pots:
+            pot_size += side_pot['amount']
+
+        for action in valid_actions:
+            if action['action'] == 'raise':
+
+                min_raise = action['amount']['min']
+                max_raise = action['amount']['max']
+
+                for raisesize in self.raisesizes:
+            
+                    raiseamount = raisesize * pot_size
+                    if raiseamount > min_raise and raiseamount < max_raise:
+                        action['amount'][raisesize] = raiseamount
+                    elif raiseamount <= min_raise: 
+                        action['amount'][raisesize] = min_raise
+                    elif raiseamount >= max_raise: 
+                        action['amount'][raisesize] = max_raise
+
+                amounts = action['amount']
+                # Sort the 'min' and 'max'
+
+                min_value = {'min': amounts.pop('min')}
+                max_value = {'max': amounts.pop('max')}
+
+                sorted_amount = dict(sorted(amounts.items(), key=lambda item: item[1]))
+
+                final_amount = {**min_value, **sorted_amount, **max_value}
+                # Update the original data with sorted values
+                action['amount'] = final_amount
+
         action = self.eps_greedy_policy(state, round_state['seats'][(self.player_id + 1) % 6], valid_actions,
                                         self.epsilon)
-        action = valid_actions[action]['action']
-        if action == "raise":
-            # To simplify the problem, raise only at minimum
-            amount = valid_actions[2]["amount"]["max"]
-        elif action == "call":
+        
+
+        if action > 1:
+            amount = list(valid_actions[2]["amount"].items())[action - 2][1]
+            action = "raise"
+        elif action == 1:
             amount = valid_actions[1]["amount"]
+            action = "call"
         else:
             amount = 0
+            action = "fold"
+
+        
         # record the action
         self.history.append(state + (self.action_to_int(action),))
         if round_state["street"] == 'preflop':
@@ -353,8 +396,6 @@ class DQNPlayer4(QLearningPlayer):
                                 self.three_bet += 1
                                 self.last_3_bet_action = last_action
                                 break  # Exit loop after the first raise found
-        
-        # print(round_state)
 
         return action, amount
 
@@ -393,7 +434,7 @@ class DQNPlayer4(QLearningPlayer):
                 reward = winners[0]['stack'] - self.stack
                 self.stack = winners[0]['stack']
             else:
-                new_stack = 3000 - winners[0]['stack']
+                new_stack = 600 - winners[0]['stack']
                 reward = new_stack - self.stack
                 self.stack = new_stack
             # average reward

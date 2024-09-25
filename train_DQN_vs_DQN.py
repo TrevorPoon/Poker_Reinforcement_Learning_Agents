@@ -14,14 +14,8 @@ import numpy as np
 
 # User's Input
 num_episode = 10000000
-win = 0
-sample_mean = 0
-SXX = 0
-sample_std = 0
 count = 0
 log_interval = 100
-log = []
-confidence_level = 0.05
 Num_of_agents = 6
 
 def moving_average(data, window_size=10):
@@ -34,16 +28,40 @@ def moving_average(data, window_size=10):
         averages.append(avg)
     return averages
 
+# Apply a valid, professional style (like ggplot or seaborn-whitegrid)
+plt.style.use('ggplot')
+
+def apply_professional_formatting():
+    """Apply professional formatting to the current plot."""
+    # Set the font and size for titles, labels, and legend
+    plt.title(plt.gca().get_title(), fontsize=16, fontweight='bold', fontname='Arial', color='#333333')
+    plt.xlabel(plt.gca().get_xlabel(), fontsize=14, fontweight='bold', fontname='Arial', color='#333333')
+    plt.ylabel(plt.gca().get_ylabel(), fontsize=14, fontweight='bold', fontname='Arial', color='#333333')
+    
+    # Customizing ticks and grid
+    plt.xticks(fontsize=12, fontname='Arial', color='#333333')
+    plt.yticks(fontsize=12, fontname='Arial', color='#333333')
+    
+    # Customizing grid
+    plt.grid(True, which='both', color='gray', linestyle=':', linewidth=0.5, alpha=0.7)
+    
+    # Customizing legend
+    plt.legend(loc='upper right', fontsize=12, frameon=True, fancybox=True, framealpha=0.8, shadow=True)
+    
+    # Light grey background
+    plt.gcf().set_facecolor('#f9f9f9')
+    plt.gca().set_facecolor('#ffffff')
+
 def plotting_VPIP(vpip_df):
     plt.figure(figsize=(12, 6))
     for j in range(6):
-        plt.plot(vpip_df.iloc[:, j], label=f'Player {j+1} VPIP')
-        # Smoothing with a moving average
+        plt.plot(vpip_df.iloc[:, j], label=f'Player {j+1} VPIP', linewidth=2)
     plt.title('VPIP History of All Agents')
     plt.xlabel('Episodes (every 100 episodes)')
     plt.ylabel('VPIP (%)')
-    plt.legend()
-    plt.grid()
+    
+    apply_professional_formatting()
+    
     plt.savefig('images/vpip_history.png')
     plt.close()
 
@@ -51,66 +69,96 @@ def plotting_VPIP(vpip_df):
     for j in range(6):
         smoothed_vpip = moving_average(vpip_df.iloc[:, j])
         plt.plot(range(len(smoothed_vpip)), smoothed_vpip, linestyle='--', 
-                label=f'Player {j+1} Smoothed VPIP', alpha=0.7)
-    plt.title('VPIP History of All Agents')
+                 label=f'Player {j+1} Smoothed VPIP', alpha=0.8, linewidth=2)
+    plt.title('Smoothed VPIP History of All Agents')
     plt.xlabel('Episodes (every 100 episodes)')
     plt.ylabel('VPIP (%)')
-    plt.legend()
-    plt.grid()
+    
+    apply_professional_formatting()
+    
     plt.savefig('images/vpip_history_smoothed.png')
     plt.close()
-        
+
 def plotting_PFR(pfr_df):
     plt.figure(figsize=(12, 6))
     for j in range(6):
-        plt.plot(pfr_df.iloc[:, j], label=f'Player {j+1} PFR')
+        plt.plot(pfr_df.iloc[:, j], label=f'Player {j+1} PFR', linewidth=2)
     
     plt.title('PFR History of All Agents')
     plt.xlabel('Episodes (every 100 episodes)')
     plt.ylabel('PFR (%)')
-    plt.legend()
-    plt.grid()
+    
+    apply_professional_formatting()
+    
     plt.savefig('images/pfr_history.png')
     plt.close()
 
     plt.figure(figsize=(12, 6))
     for j in range(6):
-        # Smoothing with a moving average
         smoothed_pfr = moving_average(pfr_df.iloc[:, j])
         plt.plot(range(len(smoothed_pfr)), smoothed_pfr, linestyle='--', 
-                 label=f'Player {j+1} Smoothed PFR', alpha=0.7)
+                 label=f'Player {j+1} Smoothed PFR', alpha=0.8, linewidth=2)
     
-    plt.title('PFR History of All Agents')
+    plt.title('Smoothed PFR History of All Agents')
     plt.xlabel('Episodes (every 100 episodes)')
     plt.ylabel('PFR (%)')
-    plt.legend()
-    plt.grid()
+    
+    apply_professional_formatting()
+    
     plt.savefig('images/pfr_history_smoothed.png')
     plt.close()
 
 def plotting_3bet(three_bet_df):
     plt.figure(figsize=(12, 6))
     for j in range(6):
-        plt.plot(three_bet_df.iloc[:, j], label=f'Player {j+1} 3-Bet %')
+        plt.plot(three_bet_df.iloc[:, j], label=f'Player {j+1} 3-Bet %', linewidth=2)
     plt.title('3-Bet Percentage History of All Agents')
     plt.xlabel('Episodes (every 100 episodes)')
     plt.ylabel('3-Bet %')
-    plt.legend()
-    plt.grid()
+    
+    apply_professional_formatting()
+    
     plt.savefig('images/three_bet_history.png')
     plt.close()
 
     plt.figure(figsize=(12, 6))
     for j in range(6):
-        # Smoothing with a moving average
         smoothed_3bet = moving_average(three_bet_df.iloc[:, j])
         plt.plot(range(len(smoothed_3bet)), smoothed_3bet, linestyle='--', 
-                 label=f'Player {j+1} Smoothed 3-Bet %', alpha=0.7)
-    plt.title('3-Bet Percentage History of All Agents')
+                 label=f'Player {j+1} Smoothed 3-Bet %', alpha=0.8, linewidth=2)
+    plt.title('Smoothed 3-Bet Percentage History of All Agents')
     plt.xlabel('Episodes (every 100 episodes)')
     plt.ylabel('3-Bet %')
-    plt.legend()
-    plt.grid()
+    
+    apply_professional_formatting()
+    
+    plt.savefig('images/three_bet_history_Smoothed.png')
+    plt.close()
+
+def plotting_loss(loss_df):
+    plt.figure(figsize=(12, 6))
+    for j in range(6):
+        plt.plot(loss_df.iloc[:, j], label=f'Player {j+1} 3-Bet %', linewidth=2)
+    plt.title('Model Loss of All Agents')
+    plt.xlabel('Episodes (every 100 episodes)')
+    plt.ylabel('Loss')
+    
+    apply_professional_formatting()
+    
+    plt.savefig('images/model_loss.png')
+    plt.close()
+
+    plt.figure(figsize=(12, 6))
+    for j in range(6):
+        smoothed_loss = moving_average(loss_df.iloc[:, j])
+        plt.plot(range(len(smoothed_loss)), smoothed_loss, linestyle='--', 
+                 label=f'Player {j+1} Smoothed model loss %', alpha=0.8, linewidth=2)
+    plt.title('Smoothed Model Loss of All Agents')
+    plt.xlabel('Episodes (every 100 episodes)')
+    plt.ylabel('Model Loss')
+    
+    apply_professional_formatting()
+    
     plt.savefig('images/three_bet_history_Smoothed.png')
     plt.close()
 
@@ -118,10 +166,12 @@ def plotting_3bet(three_bet_df):
 vpip_history = []
 pfr_history = []
 three_bet_history = []
+loss_history = []
 
 vpip_df = pd.DataFrame()
 pfr_df = pd.DataFrame()
 three_bet_df = pd.DataFrame()
+loss_df = pd.DataFrame()
 
 if os.path.exists("DQN_Stat/vpip_history.csv"):
     vpip_df = pd.read_csv("DQN_Stat/vpip_history.csv")
@@ -129,6 +179,8 @@ if os.path.exists("DQN_Stat/pfr_history.csv"):
     pfr_df = pd.read_csv("DQN_Stat/pfr_history.csv")
 if os.path.exists("DQN_Stat/three_bet_history.csv"):
     three_bet_df = pd.read_csv("DQN_Stat/three_bet_history.csv")
+if os.path.exists("DQN_Stat/loss_history.csv"):
+    loss_df = pd.read_csv("DQN_Stat/loss_history.csv")
 
 dqn_paths = {}
 for i in range(Num_of_agents):
@@ -177,41 +229,52 @@ for i in range(0, num_episode):
             three_bet_history.append(three_bet_rate)
             print(f"3-Bet Percentage over each episode: {three_bet_rate:.2f}%")
 
+            # model_loss = training_agents[j].losses[-1]
+            # loss_history.append(model_loss)
+
             # Resetting the counts for the next episode
             training_agents[j].VPIP, training_agents[j].PFR, training_agents[j].three_bet, training_agents[j].hand_count = 0, 0, 0, 0
             config.players_info[j]['algorithm'].save_model()
 
-        vip_history = np.array(vpip_history)
 
         new_vpip = pd.DataFrame([vpip_history])
         new_pfr = pd.DataFrame([pfr_history])
         new_three_bet = pd.DataFrame([three_bet_history])
+        new_loss = pd.DataFrame([loss_history])
 
         if not vpip_df.empty:
             new_vpip.columns = vpip_df.columns
         
         if not pfr_df.empty:
             new_pfr.columns = pfr_df.columns
-
+        
         if not three_bet_df.empty:
             new_three_bet.columns = three_bet_df.columns
+
+        if not loss_df.empty:
+            new_loss.columns = loss_df.columns
 
         # Reset index before concatenation
         vpip_df = pd.concat([vpip_df, new_vpip], ignore_index=True)  # No ignore_index here
         pfr_df = pd.concat([pfr_df, new_pfr], ignore_index=True)      # No ignore_index here
         three_bet_df = pd.concat([three_bet_df, new_three_bet],ignore_index=True)
+        loss_df = pd.concat([loss_df, new_loss], ignore_index=True)
 
         vpip_df.to_csv("DQN_Stat/vpip_history.csv", index=False)
         pfr_df.to_csv("DQN_Stat/pfr_history.csv", index=False)
         three_bet_df.to_csv("DQN_Stat/three_bet_history.csv", index=False)
+        loss_df.to_csv("DQN_Stat/loss_history.csv", index=False)
 
         vpip_history = []
         pfr_history = []
         three_bet_history = []
+        loss_history = []
 
         plotting_VPIP(vpip_df)
         plotting_PFR(pfr_df)
         plotting_3bet(three_bet_df)
+        # plotting_loss(loss_df)
+
 
         if count % 10000 == 0:
             gc.collect()
