@@ -13,15 +13,23 @@ import os
 import matplotlib.pyplot as plt
 import gc
 import pandas as pd
-import numpy as np 
+import numpy as np
+import seaborn as sns
 
 # User's Input
-num_episode = 10000000
-count = 0
+num_episode = 100
 log_interval = 100
-Num_of_agents = 1
 Title = 'DQN_vs_AllCall' # 'DQN_vs_AllCall' 'DQN_vs_DQN'
+training = True
+Num_of_agents = 1
 
+
+# Initialisation
+count = 0
+if Title == 'DQN_vs_DQN':
+    Num_of_agents = 6
+else:
+    Num_of_agents = 1
 
 def moving_average(data, window_size=10):
     """Calculate the moving average manually."""
@@ -57,7 +65,7 @@ def apply_professional_formatting():
     plt.gcf().set_facecolor('#f9f9f9')
     plt.gca().set_facecolor('#ffffff')
 
-def plot_metric(df, metric_name, ylabel, file_suffix):
+def plot_line_metric(df, metric_name, ylabel, file_suffix):
     """Plots both raw and smoothed graphs for a given metric."""
     # Plot raw data
     plt.figure(figsize=(12, 6))
@@ -82,6 +90,84 @@ def plot_metric(df, metric_name, ylabel, file_suffix):
     apply_professional_formatting()
     plt.savefig(f'images/{Title}_{file_suffix}_smoothed.png')
     plt.close()
+
+def plot_action_proportions(action_stat, filename):
+    # Prepare data for each street
+    streets = list(action_stat.keys())
+    actions = ['check', 'call', 'raise', 'fold']
+    
+    # Calculate proportions for each action on each street
+    proportions = {action: [] for action in actions}
+    for street in streets:
+        total = sum(action_stat[street].values())  # Total actions on this street
+        for action in actions:
+            proportion = action_stat[street][action] / total if total > 0 else 0
+            proportions[action].append(proportion)
+    
+    # Plot stacked bar chart
+    fig, ax = plt.subplots(figsize=(8, 6))
+    bottom = [0] * len(streets)  # Start at zero for each stacked bar
+
+    # Add each action layer to the bar chart
+    for action in actions:
+        ax.bar(streets, proportions[action], label=action, bottom=bottom)
+        # Update the bottom for the next action layer
+        bottom = [i + j for i, j in zip(bottom, proportions[action])]
+
+    # Add labels and title
+    ax.set_xlabel("Street")
+    ax.set_ylabel("Proportion")
+    ax.set_title("Proportion of Actions at Each Street")
+    ax.legend(title="Actions")
+    
+    # Save the plot as a PNG file
+    plt.savefig(f'images/{Title}_{filename}', format="png")
+    plt.close()
+
+def plot_hand_reward_heatmap(card_reward_stat, filename):
+    # Define hand categories
+    hands = card_reward_stat['hands']
+
+    print(sum(hands.values()))
+    
+    # Initialize a 13x13 matrix for the heatmap data and a label matrix for hand names + values
+    reward_matrix = np.full((13, 13), np.nan)
+    label_matrix = np.empty((13, 13), dtype=object)
+    
+    # Define hand labels for the axes
+    labels = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2']
+    
+    # Populate the reward matrix and label matrix with values from card_reward_stat
+    for i, rank1 in enumerate(labels):
+        for j, rank2 in enumerate(labels):
+            if i == j:  # Pocket pairs
+                hand = rank1 + rank2
+            elif i < j:  # Suited hands
+                hand = rank1 + rank2 + 's'
+            else:  # Offsuit hands
+                hand = rank2 + rank1 + 'o'
+            
+            # Assign the reward value to the matrix cell
+            reward_value = hands.get(hand, np.nan) / 100
+            reward_matrix[i, j] = reward_value
+            
+            # Create a label with both hand type and reward value, formatted to two decimal places
+            label_matrix[i, j] = f"{hand}\n{reward_value:.2f}" if not np.isnan(reward_value) else hand
+
+    # Create the heatmap with both hand labels and values as annotations
+    plt.figure(figsize=(12, 12))
+    ax = sns.heatmap(reward_matrix, annot=label_matrix, fmt="", cmap="RdYlGn", square=True,
+                     linewidths=0.5, cbar_kws={'label': 'Reward Value'},
+                     xticklabels=labels, yticklabels=labels)
+    
+    # Set the plot title and labels
+    ax.set_title("Hand Reward Heatmap")
+
+    # Save the heatmap as an image file
+    plt.tight_layout()
+    plt.savefig(f'images/{Title}_{filename}', format="png")
+    plt.close()
+
 
 # Declaration
 vpip_history, pfr_history, three_bet_history, loss_history, reward_history = [], [], [], [], []
@@ -120,7 +206,7 @@ if Num_of_agents == 1:
         'optimizer': os.getcwd() + f'/model/dqn_optim_{Title}.dump'
     }
 
-    training_agents =  [DQNPlayer(dqn_paths['model'], dqn_paths['optimizer'], True)]
+    training_agents =  [DQNPlayer(dqn_paths['model'], dqn_paths['optimizer'], training)]
 else:
     for i in range(Num_of_agents):
         dqn_paths[i] = {
@@ -128,12 +214,12 @@ else:
             'optimizer': os.getcwd() + f'/model/dqn{i+1}_optim.dump'
         }
 
-    training_agents =  [DQNPlayer1(dqn_paths[0]['model'], dqn_paths[0]['optimizer'], True),
-                        DQNPlayer2(dqn_paths[1]['model'], dqn_paths[1]['optimizer'], True),
-                        DQNPlayer3(dqn_paths[2]['model'], dqn_paths[2]['optimizer'], True),
-                        DQNPlayer4(dqn_paths[3]['model'], dqn_paths[3]['optimizer'], True),
-                        DQNPlayer5(dqn_paths[4]['model'], dqn_paths[4]['optimizer'], True),
-                        DQNPlayer6(dqn_paths[5]['model'], dqn_paths[5]['optimizer'], True)]
+    training_agents =  [DQNPlayer1(dqn_paths[0]['model'], dqn_paths[0]['optimizer'], training),
+                        DQNPlayer2(dqn_paths[1]['model'], dqn_paths[1]['optimizer'], training),
+                        DQNPlayer3(dqn_paths[2]['model'], dqn_paths[2]['optimizer'], training),
+                        DQNPlayer4(dqn_paths[3]['model'], dqn_paths[3]['optimizer'], training),
+                        DQNPlayer5(dqn_paths[4]['model'], dqn_paths[4]['optimizer'], training),
+                        DQNPlayer6(dqn_paths[5]['model'], dqn_paths[5]['optimizer'], training)]
 
 # Set up configuration
 config = setup_config(max_round=6, initial_stack=100, small_blind_amount=0.5)
@@ -153,6 +239,7 @@ for i in range(0, num_episode):
     game_result = start_poker(config, verbose=0)
 
     if count % log_interval == 0:
+
         print(count)
         loss_switch = 1
         for j in range(Num_of_agents):
@@ -183,8 +270,11 @@ for i in range(0, num_episode):
             print(f"Reward: {accum_reward:.2f}")
 
             # Resetting the counts for the next episode
-            training_agents[j].VPIP, training_agents[j].PFR, training_agents[j].three_bet, training_agents[j].hand_count = 0, 0, 0, 0
+            training_agents[j].VPIP = training_agents[j].PFR = training_agents[j].three_bet = training_agents[j].hand_count = 0
             config.players_info[j]['algorithm'].save_model()
+
+            plot_action_proportions(training_agents[j].action_stat, f"DNQ_Player{j + 1}_action_proportions.png")
+            plot_hand_reward_heatmap(training_agents[j].card_reward_stat, f"DNQ_Player{j + 1}_hand_reward_heatmap.png")
 
 
         new_vpip = pd.DataFrame([vpip_history])
@@ -225,15 +315,12 @@ for i in range(0, num_episode):
 
         vpip_history, pfr_history, three_bet_history, loss_history, reward_history= [], [], [], [], []
 
-        plot_metric(vpip_df, 'VPIP', 'VPIP (%)', 'vpip_history')
-        plot_metric(pfr_df, 'PFR', 'PFR (%)', 'pfr_history')
-        plot_metric(three_bet_df, '3-Bet %', '3-Bet %', 'three_bet_history')
-        plot_metric(reward_df, 'Reward', 'Reward', 'Reward')
+        plot_line_metric(vpip_df, 'VPIP', 'VPIP (%)', 'vpip_history')
+        plot_line_metric(pfr_df, 'PFR', 'PFR (%)', 'pfr_history')
+        plot_line_metric(three_bet_df, '3-Bet %', '3-Bet %', 'three_bet_history')
+        plot_line_metric(reward_df, 'Reward', 'Reward', 'Reward')
         if loss_switch == 1:
-            plot_metric(loss_df, 'Model Loss', 'Loss', 'model_loss')
-        
-
-        if loss_switch == 1:
+            plot_line_metric(loss_df, 'Model Loss', 'Loss', 'model_loss')
             if round(model_loss, 5) == 0:
                 break
 
