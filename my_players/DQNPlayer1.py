@@ -5,17 +5,18 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
+import math
 
 # hyper-parameters
 batch_size = 64
 learning_rate = 1e-4
-gamma = 0.95
+gamma = 0.99
 exp_replay_size = 10000
-epsilon = 0.05
+epsilon = 0.5
 learn_start = 1000
-target_net_update_freq = 600
-
-
+target_net_update_freq = 1000
+decay_factor = 0.9999
+final_epsilon = 0.1
 
 class ExperienceReplayMemory:
     def __init__(self, capacity):
@@ -44,13 +45,15 @@ class DQN(nn.Module):
         self.num_actions = num_actions
 
         self.fc1 = nn.Linear(self.input_shape[0], 128)
-        self.fc2 = nn.Linear(128, 64)
-        self.fc3 = nn.Linear(64, self.num_actions)
+        self.fc2 = nn.Linear(128, 128)
+        self.fc3 = nn.Linear(128, 64)
+        self.fc4 = nn.Linear(64, self.num_actions)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
-        x = self.fc3(x)
+        x = F.relu(self.fc3(x))
+        x = self.fc4(x)
         return x
 
 
@@ -62,9 +65,6 @@ class DQNPlayer1(QLearningPlayer):
         """
         # training device: cpu > cuda
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        ratios = np.random.rand(3)
-        ratios /= ratios.sum()
-        self.fold_ratio, self.raise_ratio, self.call_ratio = ratios
         self.nb_player = self.player_id = None
         self.loss = 0
         self.episode = 0
@@ -91,7 +91,7 @@ class DQNPlayer1(QLearningPlayer):
         self.training = training
         # declare DQN model
         self.num_actions = 11
-        self.num_feats = (8,)
+        self.num_feats = (46, )
         self.declare_networks()
         try:
             self.policy_net.load_state_dict(torch.load(self.model_path))
@@ -124,6 +124,8 @@ class DQNPlayer1(QLearningPlayer):
         self.three_bet = 0
         self.last_3_bet_action = None
         self.raisesizes = [0.25, 0.33, 0.5, 0.75, 1, 1.25, 1.5]
+        self.accumulated_reward = 0
+        self.state = []
 
 
     def declare_networks(self):
@@ -172,7 +174,6 @@ class DQNPlayer1(QLearningPlayer):
 
     def save_loss(self, loss):
         self.losses.append(loss)
-        print(losses)
 
     def compute_loss(self, batch_vars):
         batch_state, batch_action, batch_reward, non_final_next_states, non_final_mask, empty_next_state_values = batch_vars
@@ -190,8 +191,8 @@ class DQNPlayer1(QLearningPlayer):
             expected_q_values = batch_reward + (self.gamma * max_next_q_values)
         loss_fn = nn.SmoothL1Loss()
         loss = loss_fn(current_q_values, expected_q_values)
-        self.loss.append(loss)
-        print(loss)
+        self.loss = loss.detach().item()
+        # print(loss)
         # diff = (expected_q_values - current_q_values)
         # loss = self.huber(diff)
         # loss = loss.mean()
@@ -225,12 +226,11 @@ class DQNPlayer1(QLearningPlayer):
         """
         to use in fix-target
         """
-
-
-        self.update_count = self.update_count % self.target_net_update_freq
-        if self.update_count == 0:
+        if self.update_count % self.target_net_update_freq == 0:
             self.target_net.load_state_dict(self.policy_net.state_dict())
             # print("update target: ", self.update_count)
+        
+        self.epsilon = max(final_epsilon, self.epsilon * decay_factor)
 
     def get_max_next_state_action(self, next_states):
         return self.target_net(next_states).max(dim=1)[1].view(-1, 1)
@@ -270,51 +270,96 @@ class DQNPlayer1(QLearningPlayer):
             new_community_card.append(52)
         return tuple(new_community_card)
 
-    def eps_greedy_policy(self, s, opponent, valid_actions, eps=0.1):
+    def eps_greedy_policy(self, s, opponent, valid_actions, eps):
         with torch.no_grad():
+            X = torch.tensor([s], device=self.device, dtype=torch.float)
+            q_values = self.policy_net(X).cpu().numpy().reshape(-1)
+
+            # Create a mask of valid actions
+            valid_action_mask = np.ones(self.num_actions, dtype=bool)
+
+            # Adjust mask based on game state
+            if opponent['state'] == 'allin' or valid_actions[2]['amount']['max'] == -1:
+                valid_action_mask[2:] = False  # Only 'fold' and 'call' are valid
+            if valid_actions[1]['amount'] == 0:
+                valid_action_mask[0] = False  # Cannot 'fold' when 'check' is available
+
+            # Apply mask to Q-values
+            masked_q_values = np.where(valid_action_mask, q_values, -np.inf)
+
             if np.random.random() >= eps or not self.training:
-                X = torch.tensor([s], device=self.device, dtype=torch.float)
-                action_list = self.policy_net(X).cpu().numpy().reshape(-1)
-                if opponent['state'] == 'allin' or valid_actions[2]['amount']['max'] == -1:
-                    action_list = action_list[:2] 
-                if valid_actions[1]['amount'] == 0:
-                    # if one can check, do not fold
-                    action_list = np.delete(action_list, 0)
-                return np.argmax(action_list)
+                action = np.argmax(masked_q_values)
             else:
-                action_list = np.array([0, 1, 2])
-                if opponent['state'] == 'allin' or valid_actions[2]['amount']['max'] == -1:
-                    action_list = action_list[:2] 
-                if valid_actions[1]['amount'] == 0:
-                    # if one can check, do not fold
-                    action_list = np.delete(action_list, 0)
-                return np.random.choice(action_list, 1).item()
+                valid_actions_indices = np.where(valid_action_mask)[0]
+                action = np.random.choice(valid_actions_indices)
+
+            return action
 
     @staticmethod
     def process_state(s):
         new_s = list(s)
         for i in range(0, 7):
             new_s[i] = new_s[i] / 26.0 - 1
-        for i in range(7, 8):
-            new_s[i] = (new_s[i] - 10) / 10
+        for i in range(7, 39):
+            new_s[i] = (new_s[i] - 100) / 100
         return tuple(new_s)
+    
+    def get_state(self, community_card, round_state):
+
+        self.state = self.hole_card + community_card 
+
+        # Bet Related
+        main_pot = round_state['pot']['main']['amount']
+        self.state += (main_pot,)
+
+        player_stacks = tuple(seat['stack'] for seat in round_state['seats'])
+        self.state += player_stacks  
+
+        self.state += (round_state['seats'][self.player_id]['stack'], )
+
+        last_amounts = {seat['uuid']: [0, 0, 0, 0] for seat in round_state['seats']}  # 4 rounds per player
+
+        for i, street in enumerate(['preflop', 'flop', 'turn', 'river']):
+            actions = round_state['action_histories'].get(street, [])
+            for action in actions:
+                uuid = action['uuid']
+                last_amounts[uuid][i] = action.get('amount', 0)
+
+        for player_id in last_amounts:
+            self.state += tuple(last_amounts[player_id])
+
+        # Boolean
+        player_statuses = tuple(1 if seat['state'] == 'participating' else 0 for seat in round_state['seats'])
+        self.state += player_statuses
+
+        for player in round_state['seats']:
+            if player['uuid'] == self.uuid:
+                my_position = int(player['name'][-1])
+                break
+
+        dealer_position = round_state['dealer_btn']
+        player_position = (my_position - dealer_position) % len(round_state['seats'])
+        self.state += (player_position, )
+        
+        return self.state
 
     def declare_action(self, valid_actions, hole_card, round_state):
         """
         state: hole_card, community_card, self.stack
         """
+
         # preprocess variable in states
         self.episode += 1
         self.update_count += 1
+
         hole_card_1 = self.card_to_int(hole_card[0])
         hole_card_2 = self.card_to_int(hole_card[1])
         self.hole_card = (hole_card_1, hole_card_2)
         community_card = self.community_card_to_tuple(round_state['community_card'])
         
+        self.state = self.get_state(community_card, round_state)
 
-        state = self.hole_card + community_card + (int(round_state['seats'][self.player_id]['stack']/10),)
-
-        state = self.process_state(state)
+        self.state = self.process_state(self.state)
 
         pot_size = round_state['pot']['main']['amount']
         side_pots = round_state['pot'].get('side', [])
@@ -349,9 +394,11 @@ class DQNPlayer1(QLearningPlayer):
                 # Update the original data with sorted values
                 action['amount'] = final_amount
 
-        action = self.eps_greedy_policy(state, round_state['seats'][(self.player_id + 1) % 6], valid_actions,
+        action = self.eps_greedy_policy(self.state, round_state['seats'][(self.player_id + 1) % 6], valid_actions,
                                         self.epsilon)
         
+        # record the action
+        self.history.append(self.state + (action,))
 
         if action > 1:
             amount = list(valid_actions[2]["amount"].items())[action - 2][1]
@@ -363,41 +410,35 @@ class DQNPlayer1(QLearningPlayer):
             amount = 0
             action = "fold"
 
-        
-        # record the action
-        self.history.append(state + (self.action_to_int(action),))
+        print(action, amount)
+
         if round_state["street"] == 'preflop':
+
             pre_flop_action = round_state['action_histories']['preflop']
-            
-            if pre_flop_action:
-                last_action = pre_flop_action[-1]['action']
 
-                if last_action in ["CALL", "RAISE"]:
+            if action in ["call", "raise"]:
 
-                    last_paid = pre_flop_action[-1]['paid']
+                # VPIP Logic
+                if amount > 0:
+                    if not self.last_vpip_action:
+                        self.VPIP += 1
+                        self.last_vpip_action = action
+    
+                # PFR Logic
+                if action == "raise" and not self.last_pfr_action:
+                    self.PFR += 1
+                    self.last_pfr_action = action
 
-                    # VPIP Logic
-                    if last_paid > 0:
-                        if not self.last_vpip_action:
-                            self.VPIP += 1
-                            self.last_vpip_action = last_action
+                # 3-Bet Logic
+                if action == "raise" and not self.last_3_bet_action:
+                    # Check for any previous raise in the action history
+                    for previous_action in reversed(pre_flop_action[:-1]):  # Go backwards to find the first raise
+                        if previous_action["action"].lower() == "raise":
+                            self.three_bet += 1
+                            self.last_3_bet_action = action
+                            break  # Exit loop after the first raise found
 
-
-                    # PFR Logic
-                    if last_action == "RAISE" and not self.last_pfr_action:
-                        self.PFR += 1
-                        self.last_pfr_action = last_action
-
-                    # 3-Bet Logic
-                    if last_action == "RAISE" and not self.last_3_bet_action:
-                        # Check for any previous raise in the action history
-                        for previous_action in reversed(pre_flop_action[:-1]):  # Go backwards to find the first raise
-                            if previous_action["action"] == "RAISE":
-                                self.three_bet += 1
-                                self.last_3_bet_action = last_action
-                                break  # Exit loop after the first raise found
-
-        return action, amount
+        return action, math.floor(amount)
 
     def receive_game_start_message(self, game_info):
         self.nb_player = game_info['player_num']
@@ -405,6 +446,7 @@ class DQNPlayer1(QLearningPlayer):
             if self.uuid == game_info['seats'][i]['uuid']:
                 self.player_id = i
                 break
+        self.stack = 100
 
     def receive_round_start_message(self, round_count, hole_card, seats):
         self.last_vpip_action = None
@@ -425,21 +467,22 @@ class DQNPlayer1(QLearningPlayer):
         return m[round_int]
 
     def receive_round_result_message(self, winners, hand_info, round_state):
-        if len(self.history) >= 1 and self.training:
-            # if player has declared some action before
 
-            # define the reward and append the last action to history
-            if winners[0]['uuid'] == self.uuid:
-                # player win the game
-                reward = winners[0]['stack'] - self.stack
-                self.stack = winners[0]['stack']
-            else:
-                new_stack = 600 - winners[0]['stack']
-                reward = new_stack - self.stack
-                self.stack = new_stack
-            # average reward
-            reward /= len(self.history)
-            reward /= 10
+        if len(self.history) >= 1 and self.training:
+
+            for players in round_state['seats']: 
+                
+                if players['uuid'] == self.uuid:
+                    if self.stack != 0:
+                        reward = (players['stack'] - self.stack) / self.stack 
+                    else: reward = 0
+                    self.stack = players['stack']
+                    break
+            
+            self.accumulated_reward += reward / 100
+
+            #if winners[0]['uuid'] == self.uuid:
+                #reward += 0.05
 
             action_num = len(round_state['action_histories'])
             if round_state['action_histories'][self.round_int_to_string(action_num - 1)] == []:
@@ -452,14 +495,14 @@ class DQNPlayer1(QLearningPlayer):
                 community_card = self.community_card_to_tuple(round_state['community_card'][:4])
             elif action_num == 4:
                 community_card = self.community_card_to_tuple(round_state['community_card'][:5])
-            last_state = (self.hole_card[0], self.hole_card[1]) + community_card + (
-                int(round_state['seats'][self.player_id]['stack']/10),)
-            last_state = self.process_state(last_state)
+
+            self.state = self.get_state(community_card, round_state)
+            last_state = self.process_state(self.state)
             # append the last state to history
             self.history.append(last_state + (None,))
 
             # update using reward
-            for i in range(0, len(self.history) - 1):
+            for i in range(len(self.history) - 1):
                 h = self.history[i]
                 next_h = self.history[i + 1]
                 self.update(h[:-1], h[-1], reward, next_h[:-1], self.episode)
