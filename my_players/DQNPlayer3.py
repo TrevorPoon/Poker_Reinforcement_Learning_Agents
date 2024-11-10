@@ -410,8 +410,6 @@ class DQNPlayer3(QLearningPlayer):
             amount = 0
             action = "fold"
 
-        print(action, amount)
-
         if round_state["street"] == 'preflop':
 
             pre_flop_action = round_state['action_histories']['preflop']
