@@ -11,12 +11,12 @@ import math
 batch_size = 64
 learning_rate = 1e-4
 gamma = 0.99
-exp_replay_size = 10000
-epsilon = 0.5
-learn_start = 1000
-target_net_update_freq = 1000
-decay_factor = 0.9999
-final_epsilon = 0.1
+exp_replay_size = 100000
+learn_start = 500
+target_net_update_freq = 10000
+epsilon = 0.2
+decay_factor = 0.999
+final_epsilon = 0.05
 
 class ExperienceReplayMemory:
     def __init__(self, capacity):
@@ -63,24 +63,22 @@ class DQNPlayer4(QLearningPlayer):
         """
         State: hole_card, community_card, self.stack, opponent_player.action
         """
-        # training device: cpu > cuda
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.nb_player = self.player_id = None
-        self.loss = 0
-        self.episode = 0
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu") # training device: cpu > cuda
+        self.nb_player = None # Number of players in the game 
+        self.player_id = None # DQN Player ID (ID = 0 if p1) 
+        self.episode = 0 # Sequence of action
         self.declare_memory()
-        #self.oponent_action = None
-        self.loss = []
-        #self.oponent = None
+        self.loss = [] # Model loss
 
         # hyper-parameter for Deep Q Learning
-        self.epsilon = epsilon
+        self.epsilon = self.max_epsilon = epsilon
         self.gamma = gamma
         self.learning_rate = learning_rate
         self.experience_replay_size = exp_replay_size
         self.batch_size = batch_size
         self.learn_start = learn_start
         self.target_net_update_freq = target_net_update_freq
+
         # training-required game attribute
         self.stack = 100
         self.hole_card = None
@@ -89,8 +87,65 @@ class DQNPlayer4(QLearningPlayer):
         self.update_count = 0
         self.history = []
         self.training = training
+
+        # Player's stats
+        self.hand_count = 0
+        self.VPIP = 0
+        self.last_vpip_action = None
+        self.PFR = 0
+        self.last_pfr_action = None
+        self.three_bet = 0
+        self.last_3_bet_action = None
+        self.raisesizes = [0.25, 0.33, 0.5, 0.75, 1, 1.25, 1.5]
+        self.accumulated_reward = 0
+        self.state = []
+        self.action_stat = {
+            'preflop': {'check': 0, 'call': 0, 'raise': 0, 'fold': 0},
+            'flop': {'check': 0, 'call': 0, 'raise': 0, 'fold': 0},
+            'turn': {'check': 0, 'call': 0, 'raise': 0, 'fold': 0},
+            'river': {'check': 0, 'call': 0, 'raise': 0, 'fold': 0}
+        }
+
+        self.hand_type = None
+        # self.card_reward_stat = {
+        #     'hands': {
+        #         # Pocket Pairs
+        #         'AA': 0, 'KK': 0, 'QQ': 0, 'JJ': 0, 'TT': 0, '99': 0, '88': 0, '77': 0, '66': 0, '55': 0, '44': 0, '33': 0, '22': 0,
+                
+        #         # Suited Hands (AKs down to 32s)
+        #         'AKs': 0, 'AQs': 0, 'AJs': 0, 'ATs': 0, 'A9s': 0, 'A8s': 0, 'A7s': 0, 'A6s': 0, 'A5s': 0, 'A4s': 0, 'A3s': 0, 'A2s': 0,
+        #         'KQs': 0, 'KJs': 0, 'KTs': 0, 'K9s': 0, 'K8s': 0, 'K7s': 0, 'K6s': 0, 'K5s': 0, 'K4s': 0, 'K3s': 0, 'K2s': 0,
+        #         'QJs': 0, 'QTs': 0, 'Q9s': 0, 'Q8s': 0, 'Q7s': 0, 'Q6s': 0, 'Q5s': 0, 'Q4s': 0, 'Q3s': 0, 'Q2s': 0,
+        #         'JTs': 0, 'J9s': 0, 'J8s': 0, 'J7s': 0, 'J6s': 0, 'J5s': 0, 'J4s': 0, 'J3s': 0, 'J2s': 0,
+        #         'T9s': 0, 'T8s': 0, 'T7s': 0, 'T6s': 0, 'T5s': 0, 'T4s': 0, 'T3s': 0, 'T2s': 0,
+        #         '98s': 0, '97s': 0, '96s': 0, '95s': 0, '94s': 0, '93s': 0, '92s': 0,
+        #         '87s': 0, '86s': 0, '85s': 0, '84s': 0, '83s': 0, '82s': 0,
+        #         '76s': 0, '75s': 0, '74s': 0, '73s': 0, '72s': 0,
+        #         '65s': 0, '64s': 0, '63s': 0, '62s': 0,
+        #         '54s': 0, '53s': 0, '52s': 0,
+        #         '43s': 0, '42s': 0,
+        #         '32s': 0,
+                
+        #         # Offsuit Hands (AKo down to 32o)
+        #         'AKo': 0, 'AQo': 0, 'AJo': 0, 'ATo': 0, 'A9o': 0, 'A8o': 0, 'A7o': 0, 'A6o': 0, 'A5o': 0, 'A4o': 0, 'A3o': 0, 'A2o': 0,
+        #         'KQo': 0, 'KJo': 0, 'KTo': 0, 'K9o': 0, 'K8o': 0, 'K7o': 0, 'K6o': 0, 'K5o': 0, 'K4o': 0, 'K3o': 0, 'K2o': 0,
+        #         'QJo': 0, 'QTo': 0, 'Q9o': 0, 'Q8o': 0, 'Q7o': 0, 'Q6o': 0, 'Q5o': 0, 'Q4o': 0, 'Q3o': 0, 'Q2o': 0,
+        #         'JTo': 0, 'J9o': 0, 'J8o': 0, 'J7o': 0, 'J6o': 0, 'J5o': 0, 'J4o': 0, 'J3o': 0, 'J2o': 0,
+        #         'T9o': 0, 'T8o': 0, 'T7o': 0, 'T6o': 0, 'T5o': 0, 'T4o': 0, 'T3o': 0, 'T2o': 0,
+        #         '98o': 0, '97o': 0, '96o': 0, '95o': 0, '94o': 0, '93o': 0, '92o': 0,
+        #         '87o': 0, '86o': 0, '85o': 0, '84o': 0, '83o': 0, '82o': 0,
+        #         '76o': 0, '75o': 0, '74o': 0, '73o': 0, '72o': 0,
+        #         '65o': 0, '64o': 0, '63o': 0, '62o': 0,
+        #         '54o': 0, '53o': 0, '52o': 0,
+        #         '43o': 0, '42o': 0,
+        #         '32o': 0
+        #     }
+        # }
+
+
+
         # declare DQN model
-        self.num_actions = 11
+        self.num_actions = 2 + 2 + len(self.raisesizes) # Fold, Call, Min Raise, Max Raise (Allin) and pot size raises
         self.num_feats = (46, )
         self.declare_networks()
         try:
@@ -113,20 +168,7 @@ class DQNPlayer4(QLearningPlayer):
         else:
             self.policy_net.eval()
             self.target_net.eval()
-
-        self.update_count = 0
         
-        self.hand_count = 0
-        self.VPIP = 0
-        self.last_vpip_action = None
-        self.PFR = 0
-        self.last_pfr_action = None
-        self.three_bet = 0
-        self.last_3_bet_action = None
-        self.raisesizes = [0.25, 0.33, 0.5, 0.75, 1, 1.25, 1.5]
-        self.accumulated_reward = 0
-        self.state = []
-
 
     def declare_networks(self):
         self.policy_net = DQN(self.num_feats, self.num_actions)
@@ -230,7 +272,10 @@ class DQNPlayer4(QLearningPlayer):
             self.target_net.load_state_dict(self.policy_net.state_dict())
             # print("update target: ", self.update_count)
         
-        self.epsilon = max(final_epsilon, self.epsilon * decay_factor)
+        if self.accumulated_reward > 0:
+            self.epsilon = max(final_epsilon, self.epsilon * decay_factor)
+        else:
+            self.epsilon = min(self.max_epsilon, self.epsilon / decay_factor)
 
     def get_max_next_state_action(self, next_states):
         return self.target_net(next_states).max(dim=1)[1].view(-1, 1)
@@ -347,7 +392,6 @@ class DQNPlayer4(QLearningPlayer):
         """
         state: hole_card, community_card, self.stack
         """
-
         # preprocess variable in states
         self.episode += 1
         self.update_count += 1
@@ -435,6 +479,12 @@ class DQNPlayer4(QLearningPlayer):
                             self.three_bet += 1
                             self.last_3_bet_action = action
                             break  # Exit loop after the first raise found
+        
+        stats_action = action
+        if action == "call" and amount == 0:
+            stats_action = 'check'
+
+        self.action_stat[round_state["street"]][stats_action] += 1
 
         return action, math.floor(amount)
 
@@ -447,10 +497,12 @@ class DQNPlayer4(QLearningPlayer):
         self.stack = 100
 
     def receive_round_start_message(self, round_count, hole_card, seats):
+
         self.last_vpip_action = None
         self.last_pfr_action = None
         self.last_3_bet_action = None
         self.hand_count += 1
+
         pass
 
     def receive_street_start_message(self, street, round_state):
@@ -507,6 +559,8 @@ class DQNPlayer4(QLearningPlayer):
             # clear history
             self.history = []
             #self.save_model()
+
+
 
     def save_model(self):
         torch.save(self.policy_net.state_dict(), self.model_path)
