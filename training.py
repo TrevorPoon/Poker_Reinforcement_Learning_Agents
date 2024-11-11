@@ -17,8 +17,8 @@ import numpy as np
 import seaborn as sns
 
 # User's Input
-num_episode = 100
-log_interval = 100
+num_episode = 100000000
+log_interval = 1000
 Title = 'DQN_vs_AllCall' # 'DQN_vs_AllCall' 'DQN_vs_DQN'
 training = True
 Num_of_agents = 1
@@ -127,8 +127,6 @@ def plot_action_proportions(action_stat, filename):
 def plot_hand_reward_heatmap(card_reward_stat, filename):
     # Define hand categories
     hands = card_reward_stat['hands']
-
-    print(sum(hands.values()))
     
     # Initialize a 13x13 matrix for the heatmap data and a label matrix for hand names + values
     reward_matrix = np.full((13, 13), np.nan)
