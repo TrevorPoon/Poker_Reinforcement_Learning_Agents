@@ -19,17 +19,13 @@ import seaborn as sns
 # User's Input
 num_episode = 100000000
 log_interval = 1000
-Title = 'DQN_vs_AllCall' # 'DQN_vs_AllCall' 'DQN_vs_DQN'
+Title = 'DQN_vs_AllCall' # 'DQN_vs_AllCall' 'DQN_vs_DQN' 'DQN_vs_Honest'
 training = True
-Num_of_agents = 1
-
 
 # Initialisation
 count = 0
-if Title == 'DQN_vs_DQN':
-    Num_of_agents = 6
-else:
-    Num_of_agents = 1
+accum_reward = 0
+Num_of_agents = 6 if Title == 'DQN_vs_DQN' else 1
 
 def moving_average(data, window_size=10):
     """Calculate the moving average manually."""
@@ -227,9 +223,11 @@ for i in range(Num_of_agents):
     config.register_player(name=f"p{i+1}", algorithm=training_agents[i])
 
 for i in range(Num_of_agents+1, 7):
-    config.register_player(name=f"p{i+1}", algorithm=AllCallPlayer())
 
-accum_reward = 0
+    if Title == 'DQN_vs_AllCall': 
+        config.register_player(name=f"p{i+1}", algorithm=AllCallPlayer())
+    else:
+        config.register_player(name=f"p{i+1}", algorithm=HonestPlayer())
 
 # Game_Simulation
 for i in range(0, num_episode):
@@ -237,7 +235,6 @@ for i in range(0, num_episode):
     game_result = start_poker(config, verbose=0)
 
     if count % log_interval == 0:
-
         print(count)
         loss_switch = 1
         for j in range(Num_of_agents):

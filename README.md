@@ -21,7 +21,10 @@ The repository is organized into several vital components:
 
 # VPIP of DQN Agents in a 6-max 100BB Cash Game
 
-![VPIP of DQN Agents in a 6-max 100BB Cash Game](./images/vpip_DQNs.png)
+![VPIP of DQN Agents in a 6-max 100BB Cash Game](./images_github/vpip_DQNs.png)
+
+# Expected Value for your hand
+![Expected Value for your hand](./imgaes_github/DQN_vs_AllCall_DNQ_Player1_hand_reward_heatmap.png)
 
 
 ## Further Work
